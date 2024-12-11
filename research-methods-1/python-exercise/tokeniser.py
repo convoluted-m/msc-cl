@@ -11,7 +11,7 @@ class Tokeniser:
 
     # Tokenise text on whitespace & punctuation - without training
     def tokenise_on_punctuation(self, text):
-        separators = "`!\"#%&'()*,-./:;?@[\]_{}¡§«¶·»¿‘’“”–—`]"
+        separators = "!\"#%&'()*,-./:;?@[\]_{}¡§«¶·»¿‘’“”–—\n\t"
         for separator in separators: # loop through separators and replace with whitespace
             text = text.replace(separator, " ") 
 
@@ -30,9 +30,7 @@ class Tokeniser:
             else:
                 self.token_dict[i] += 1
 
-        self.is_trained = True # set to True to check in the method below
-        return self.token_dict
-    
+        self.is_trained = True # set to True to check in the method below    
 
     # Tokenise after training
     def tokenise(self, text, use_unk=False):
@@ -61,21 +59,18 @@ class Tokeniser:
         else:
             tokens = self.tokenise_on_punctuation(text) # call the tokenisation method to get the tokens list
             output = [] # create an empty list to store the output
-
+            
             for token in tokens: # loop through the tokens list
-                if token in self.token_dict: # if token found in the vocab dictionary
+                try:
                     if self.token_dict[token] >= threshold: # if token count threshold times or more, add to the output
-                        output.append(token)
-                    else:
-                        if use_unk == True: # else, if flag set to true, replace with 'UNK'
+                            output.append(token)
+                    else: # if token not found in the vocab, similarly, replace with 'UNK' or split into characters
+                        if use_unk == True:
                             output.append("UNK") 
                         else:
-                            output.extend(list(token)) # if flag set to false, split into characters and add each char 
-                else: # if token not found in the vocab, similarly, replace with 'UNK' or split into characters
-                    if use_unk == True:
-                        output.append("UNK") 
-                    else:
-                        output.extend(list(token))
+                            output.extend(list(token))
+                except: 
+                    pass
         return output
 
 
@@ -88,19 +83,17 @@ class Tokeniser:
             output= []
 
             for token in tokens:
-                if token in self.token_dict:
-                    if self.token_dict[token]/self.total_token_count >= 0:
+                try:
+                    if self.token_dict[token]/self.total_token_count >= threshold: 
                         output.append(token)
                     else:
                         if use_unk == True:
                             output.append("UNK") 
                         else:
                             output.extend(list(token))
-                else:
-                    if use_unk == True:
-                        output.append("UNK") 
-                    else:
-                        output.extend(list(token))
+                except:
+                    pass
+
         return output
 
 
@@ -114,7 +107,7 @@ class Tokeniser:
 # print(tokeniser_instance.tokenise_with_count_threshold(test_2, 1))
 # print(tokeniser_instance.tokenise_with_freq_threshold(test_2, 0.005))
 
-# Define the get_stats function - returns a dictionary with the basic corpus stats
+# Define the get_stats function - takes a tokenised text and returns a dictionary with the basic corpus stats
 def get_stats(text):
     token_dict = {} # create an empty dictionary to store token counts
     for i in text: # loop through the tokens list and add counts to the dictionary
@@ -132,17 +125,15 @@ def get_stats(text):
 
     # Calculate token count by length
     token_length = [] # create an empty list for token lengths
-    token_length_dict = {} # create an empty dictionary to store token counts by length
+    token_count_by_length = {} # create an empty dictionary to store token counts by length
     for i in text: #  loop through the tokens list and add the length of each token to token_length list
         token_length.append(len(i))
 
     for i in token_length: # loop through token_length list and add counts to the dictionary
-        if i not in token_length_dict:
-            token_length_dict[i] = 1
+        if i not in token_count_by_length:
+            token_count_by_length[i] = 1
         else:
-            token_length_dict[i] +=1
-
-    token_count_by_length =  token_length_dict
+            token_count_by_length[i] +=1
 
     # Calculate the average token length in the corpus
     average_token_length = sum(token_length)/len(token_length) 
@@ -156,8 +147,8 @@ def get_stats(text):
     # Put all the variables into a stats dictionary 
     keys = ['type_count', 'token_count', 'type_token_ratio', 'token_count_by_length','average_token_length', 'token_length_std']
     values = [type_count, token_count, type_token_ratio, token_count_by_length, average_token_length, token_length_std]
-    stats_dict= {keys[i]:values[i] for i in range(len(keys))}
-    #stats_dict = dict(zip(keys, values))
+    # stats_dict= {keys[i]:values[i] for i in range(len(keys))}
+    stats_dict = dict(zip(keys, values))
 
     # print each stat in a separate line
     for key, value in stats_dict.items():
