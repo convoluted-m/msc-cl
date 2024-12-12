@@ -97,16 +97,6 @@ class Tokeniser:
         return output
 
 
-# # Test the tokeniser class manually - to be deleted
-# test = "Lovely weather we are having! Indeed they were having lovely weather."
-# test_2 = "What a day today! What lovely weather!"
-# tokeniser_instance = Tokeniser()
-# print(tokeniser_instance.tokenise_on_punctuation(test))
-# print(tokeniser_instance.train(test))
-# print(tokeniser_instance.tokenise(test_2))
-# print(tokeniser_instance.tokenise_with_count_threshold(test_2, 1))
-# print(tokeniser_instance.tokenise_with_freq_threshold(test_2, 0.005))
-
 # Define the get_stats function - takes a tokenised text and returns a dictionary with the basic corpus stats
 def get_stats(text):
     token_dict = {} # create an empty dictionary to store token counts
@@ -153,7 +143,3 @@ def get_stats(text):
     # print each stat in a separate line
     for key, value in stats_dict.items():
         print(f"{key}: {value}")
-
-# # Test the stats function manually - to be deleted
-# my_list = ['bla', 'orange', 'why']
-# get_stats(my_list)
