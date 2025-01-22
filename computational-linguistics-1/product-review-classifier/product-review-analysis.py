@@ -4,11 +4,6 @@ from collections import Counter
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Download off-the-shelf w2v embeddings
-import gensim.downloader as api
-w = api.load('word2vec-google-news-300') # off the shelf embeddings
-vocab=[x for x in w.key_to_index.keys()] # a list of words from the pre-trained embeddings
-
 # Import data & create separate lists for reviews and labels
 reviews=[]
 sentiment_ratings=[]
@@ -98,83 +93,56 @@ tokens=[]
 for token in tokenised_reviews:
       tokens.extend(token)
 
-# A list of tuples with tokens and their counts
-#token_counts=Counter(tokens)
+# Count the tokens - returns a list of tuples with tokens and their counts
+token_counts=Counter(tokens)
 
-# create a unique set of tokens from the Amazon dataset
-types=set(tokens)
+# sort tuples to put most frequent first
+sorted_token_counts=sorted(token_counts.items(), key=lambda item: item[1], reverse=True)
+# select just tokens
+sorted_tokens=list(zip(*sorted_token_counts))[0]
 
-## ENCODE TEXT using embeddings
-# Map my tokens(types) to embeddings (vocab)
-indices=[vocab.index(x) for x in types if x in vocab]
-# filter tokens that are both in my dataset and the pre-trained embeddings vocab
-types_inc=[x for x in types if x in vocab] 
+## ENCODE TEXT 
+# Select the first 5000 words
+tokens_5000 = sorted_tokens[0:5000]
 
-# Create an embeddings matrix for the included tokens
-M=w[indices]
-#print(M.shape)
+# Create a 10000 x 5000 matrix of zeros for one-hot encoding
+one_hot_matrix = np.zeros((len(reviews), len(tokens_5000)))
+#iterate over the reviews
+for i, rev in enumerate(reviews):
+    # Tokenise the current review
+    tokens = token_definition.findall(rev)
+    # iterate over the set of 5000 words
+    for word,t in enumerate(tokens_5000):
+        # if the current word j occurs in the current review i then set the matrix element at i,j to be one. Otherwise leave as zero.
+        if t in tokens:
+             one_hot_matrix[i,word] = 1
 
-# Create embeddings for my classification
-# create an empty list to store embeddings
-embeddings=[]
+train_set=np.random.choice(len(reviews),int(len(reviews)*0.8),replace=False)
+test_set=list(set(range(0,len(reviews))) - set(train_set))
 
-# For each review, tokenise it, create a vector of size 300
-for i, review in enumerate(reviews):
-    tokens = re.findall("[^ ]+",review)
-    this_vec = np.zeros((1, 300))
-    #for each token in a review, if token in the types, add its embedding to the vector & append vector to vectors' list
-    for token in tokens:
-        if token in types_inc:
-            this_vec = this_vec + M[types_inc.index(t)]
-    embeddings.append(this_vec)
-    
-# convert the list into an array and squeeze to remove extra dimensions    
-embeddings=np.array(embeddings).squeeze()
+train_matrix = one_hot_matrix[train_set,]
+test_matrix = one_hot_matrix[test_set,]
 
-## SPLIT THE DATA
-# Split the data into train, test and dev sets
-train_set=np.random.choice(len(embeddings),int(len(embeddings)*0.8),replace=False)
-remaining_set=list(set(range(0,len(embeddings))) - set(train_set))
-test_set=np.random.choice(len(remaining_set),int(len(remaining_set)*0.5),replace=False)
-dev_set=list(set(range(0,len(remaining_set))) - set(test_set))
-
-# Prepare train, test, dev embeddings
-M_train_emb = embeddings[train_set,]
-M_test_emb = embeddings[test_set,]
-M_test_emb = embeddings[dev_set,]
-
-# Prepare train, test, dev labels
-labels_train = [sentiment_ratings[i] for i in train_set]
-labels_test = [sentiment_ratings[i] for i in test_set]
-labels_dev = [sentiment_ratings[i] for i in dev_set]
-
-# training labels
-labels_train = [sentiment_ratings[i] for i in train_set]
-# test labels
-labels_test = [sentiment_ratings[i] for i in test_set]
-
+sentiment_labels_train = [sentiment_ratings[i] for i in train_set]
+sentiment_labels_test = [sentiment_ratings[i] for i in test_set]
 
 ## FIT A LOGISTIC REGRESSION MODEL
-num_features=300
+num_features=5000
+y=[int(l == "positive") for l in sentiment_labels_train]
 weights = np.random.rand(num_features)
 bias=np.random.rand(1)
-
-# Train - change code for batches
 n_iters = 2500
-lr=0.005
+lr=0.1
 logistic_loss=[]
 num_samples=len(y)
-
 for i in range(n_iters):
-  z = M_train_emb.dot(weights)+bias
+  z = train_matrix.dot(weights)+bias
   q = 1/(1+np.exp(-z))
-
-  eps=0.00001 # to avoid a log of 0
+  eps=0.00001
   loss = -sum((y*np.log2(q+eps)+(np.ones(len(y))-y)*np.log2(np.ones(len(y))-q+eps)))
   logistic_loss.append(loss)
-  y_pred=[int(ql > 0.5) for ql in q]
 
-  dw = (q-y).dot(M_train_emb)/num_samples
+  dw = ((q-y).dot(train_matrix) * (1/num_samples))
   db = sum((q-y))/num_samples
   weights = weights - lr*dw
   bias = bias - lr*db
@@ -183,9 +151,38 @@ plt.plot(range(1,n_iters),logistic_loss[1:])
 plt.xlabel("number of epochs")
 plt.ylabel("loss")
 
-
-# Test
-# Calculate the vector of predicted values
-z = M_test_emb.dot(weights)+bias
+# calculate predicted class - a vector of predicted values
+z = test_matrix.dot(weights)+bias
+# turn z into probability
 q = 1/(1+np.exp(-z))
-y_test_pred=[int(ql > 0.5) for ql in q]
+#create an empty list for predicted labels
+y_test_pred = []
+
+# iterate over probability score q and add labels 1 and 0 to the labels list
+#for i in q:
+#  if i > 0.5:
+#    y_test_pred.append(1)
+#  else:
+#    y_test_pred.append(0)
+
+# could be done with list comprehension as well
+y_test_pred = [int(i>0.5) for i in q]
+
+print(y_test_pred)
+
+# Calculate accuracy
+y_test=[int(l == "positive") for l in sentiment_labels_test] # int returns 1 or 0
+acc_test=[int(yp == y_test[s]) for s,yp in enumerate(y_test_pred)] # compares same index in both lists (gold vs test labels)
+print(sum(acc_test)/len(acc_test))
+
+# precision , recall
+labels_test_pred=["positive" if s == 1 else "negative" for s in y_test_pred]
+true_positives= sum([int(yp == "positive" and sentiment_labels_test[s] == "positive") for s,yp in enumerate(labels_test_pred)])
+false_positives = sum([int(yp=="positive" and sentiment_labels_test[s] == "negative") for s,yp in enumerate(labels_test_pred)])
+false_negatives = sum([int(yp=="negative" and sentiment_labels_test[s] == "positive") for s,yp in enumerate(labels_test_pred)])
+
+prec_test = true_positives/(true_positives + false_positives)
+print(prec_test)
+
+recal_test = true_positives/(true_positives + false_negatives)
+print(recal_test)
