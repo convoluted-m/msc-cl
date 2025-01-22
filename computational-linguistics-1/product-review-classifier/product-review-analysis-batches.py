@@ -153,6 +153,16 @@ labels_train = [sentiment_ratings[i] for i in train_set]
 # test labels
 labels_test = [sentiment_ratings[i] for i in test_set]
 
+# Prepare batches for training
+batches = 10
+# Create array of all indices in training data
+a=np.arange(M_train_emb.shape[0])
+# randomly shuffle indices to prevent uneven class distrubution
+np.random.shuffle(a)
+# Split indices into k equal batches
+batches=np.array(np.split(a, batches))
+
+batches.shape
 
 ## FIT A LOGISTIC REGRESSION MODEL
 num_features=300
@@ -166,26 +176,5 @@ logistic_loss=[]
 num_samples=len(y)
 
 for i in range(n_iters):
-  z = M_train_emb.dot(weights)+bias
-  q = 1/(1+np.exp(-z))
-
-  eps=0.00001 # to avoid a log of 0
-  loss = -sum((y*np.log2(q+eps)+(np.ones(len(y))-y)*np.log2(np.ones(len(y))-q+eps)))
-  logistic_loss.append(loss)
-  y_pred=[int(ql > 0.5) for ql in q]
-
-  dw = (q-y).dot(M_train_emb)/num_samples
-  db = sum((q-y))/num_samples
-  weights = weights - lr*dw
-  bias = bias - lr*db
-
-plt.plot(range(1,n_iters),logistic_loss[1:])
-plt.xlabel("number of epochs")
-plt.ylabel("loss")
-
-
-# Test
-# Calculate the vector of predicted values
-z = M_test_emb.dot(weights)+bias
-q = 1/(1+np.exp(-z))
-y_test_pred=[int(ql > 0.5) for ql in q]
+    for k in range(batches.shape):
+        
