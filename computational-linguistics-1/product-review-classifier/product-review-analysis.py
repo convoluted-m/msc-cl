@@ -1,9 +1,15 @@
-# Import required packages
+## Import required packages
 import re
 from collections import Counter
 import matplotlib.pyplot as plt
+import numpy as np
 
-# Import data & Put into separate lists
+# Download off-the-shelf w2v embeddings
+import gensim.downloader as api
+w = api.load('word2vec-google-news-300') # off the shelf embeddings
+vocab=[x for x in w.key_to_index.keys()] # a list of words from the pre-trained embeddings
+
+# Import data & create separate lists for reviews and labels
 reviews=[]
 sentiment_ratings=[]
 product_types=[]
@@ -17,6 +23,72 @@ with open("Compiled_Reviews.txt") as f:
         product_types.append(fields[2])
         helpfulness_ratings.append(fields[3])
 
+### EXPLORE THE DATA
+
+## Explore sentiment ratings
+# Count sentiment with Counter()
+# sentiment_ratings_counter = Counter(sentiment_ratings)
+#print(sentiment_ratings_counter)
+
+# # Plot positive vs negative sentiment using matplotlib
+# plt.hist(sentiment_ratings, bins=2, align='left', rwidth=0.8)
+# plt.xlabel('Sentiment')
+# plt.ylabel('Count')
+# plt.xticks([0, 0.5], ['Positive', 'Negative'])
+# #plt.show()
+
+# # NOT needed?
+# # Categorise sentiments
+# categorised_sentiment = []
+# for sentiment in sentiment_ratings:
+#   if sentiment == 'positive':
+#     categorised_sentiment.append('Positive')
+#   else:
+#     categorised_sentiment.append('Negative')
+
+# #print(len(categorised_sentiment))
+
+# # Count positive vs negative sentiments
+# positive_count = categorised_sentiment.count("Positive")
+# #print(f"Positive count: {positive_count}")
+# negative_count = categorised_sentiment.count("Negative")
+# #print(f"Negative count: {negative_count}")
+
+# # Plot positive vs negative sentiment using matplotlib
+# plt.figure(figsize=(5, 4))
+# plt.hist(categorised_sentiment, bins=2, align='left', rwidth=0.8)
+# plt.xlabel('Sentiment')
+# plt.ylabel('Count')
+# plt.xticks([0, 0.5], ['Positive', 'Negative'])
+# #plt.show()
+
+# ## Explore product types
+# # Get count per profuct type - returns a dict
+# product_type_count = Counter(product_types)
+# product_type_count
+
+# # Plot product types with counts
+# plt.figure(figsize=(10, 8))
+# product_type_count = Counter(product_types)
+# plt.barh(list(product_type_count.keys()), list(product_type_count.values()))
+# plt.xlabel('Count')
+# plt.ylabel('Product Type')
+# #plt.show()
+
+# ## Explore review Helpfulness
+# helpfulness_ratings_count = Counter(helpfulness_ratings)
+# helpfulness_ratings_count
+
+# plt.hist(helpfulness_ratings, bins=3, align='left', rwidth=0.8)
+# plt.xlabel('Helpfulness')
+# plt.ylabel('Count')
+# plt.xticks([0, 0.65, 1.35], ['neutral', 'helpful', 'unhelpful'])
+# #plt.show()
+
+###  SENTIMENT CLASSIFIER
+
+## PREPARE THE DATA
+
 ## Tokenise the text
 # Define a token (word, space-based)
 token_definition = re.compile("[^ ]+")
@@ -29,68 +101,48 @@ for token in tokenised_reviews:
       tokens.extend(token)
 
 # A list of tuples with tokens and their counts
-token_counts=Counter(tokens)
+#token_counts=Counter(tokens)
 
-### Explore the data 
+# create a unique set of tokens from the Amazon dataset
+types=set(tokens)
 
-## Explore sentiment ratings
+## ENCODE TEXT using embeddings
+# Map my tokens(types) to embeddings (vocab)
+indices=[vocab.index(x) for x in types if x in vocab]
+# filter tokens that are both in my dataset and the pre-trained embeddings vocab
+types_inc=[x for x in types if x in vocab] 
 
-# Count sentiment with Counter()
-sentiment_ratings_counter = Counter(sentiment_ratings)
-print(sentiment_ratings_counter)
+# Create an embeddings matrix for the included tokens
+M=w[indices]
+#print(M.shape)
 
-# Plot positive vs negative sentiment using matplotlib
-plt.hist(sentiment_ratings, bins=2, align='left', rwidth=0.8)
-plt.xlabel('Sentiment')
-plt.ylabel('Count')
-plt.xticks([0, 0.5], ['Positive', 'Negative'])
-plt.show()
+# Create embeddings for my classification
+# create an empty list to store embeddings
+embeddings=[]
 
-# NOT needed?
-# Categorise sentiments
-categorised_sentiment = []
-for sentiment in sentiment_ratings:
-  if sentiment == 'positive':
-    categorised_sentiment.append('Positive')
-  else:
-    categorised_sentiment.append('Negative')
+# For each review, tokenise it, create a vector of size 300
+for i, review in enumerate(reviews):
+    tokens = re.findall("[^ ]+",review)
+    this_vec = np.zeros((1, 300))
+    #for each token in a review, if token in the types, add its embedding to the vector & append vector to vectors' list
+    for token in tokens:
+        if token in types_inc:
+            this_vec = this_vec + M[types_inc.index(t)]
+    embeddings.append(this_vec)
+    
+# convert the list into an array and squeeze to remove extra dimensions    
+embeddings=np.array(embeddings).squeeze()
 
-print(len(categorised_sentiment))
+## SPLIT THE DATA
+train_set=np.random.choice(len(embeddings),int(len(embeddings)*0.8),replace=False)
+test_set=list(set(range(0,len(embeddings))) - set(train_set))
 
-# Count positive vs negative sentiments
-positive_count = categorised_sentiment.count("Positive")
-print(f"Positive count: {positive_count}")
-negative_count = categorised_sentiment.count("Negative")
-print(f"Negative count: {negative_count}")
+# training embeddings
+M_train_emb = embeddings[train_set,]
+# test embeddings
+M_test_emb = embeddings[test_set,]
 
-# Plot positive vs negative sentiment using matplotlib
-plt.figure(figsize=(5, 4))
-plt.hist(categorised_sentiment, bins=2, align='left', rwidth=0.8)
-plt.xlabel('Sentiment')
-plt.ylabel('Count')
-plt.xticks([0, 0.5], ['Positive', 'Negative'])
-plt.show()
-
-## Explore product types
-# Get count per profuct type - returns a dict
-product_type_count = Counter(product_types)
-product_type_count
-
-# Plot product types with counts
-plt.figure(figsize=(10, 8))
-product_type_count = Counter(product_types)
-plt.barh(list(product_type_count.keys()), list(product_type_count.values()))
-plt.xlabel('Count')
-plt.ylabel('Product Type')
-plt.show()
-
-## Explore review Helpfulness
-helpfulness_ratings_count = Counter(helpfulness_ratings)
-helpfulness_ratings_count
-
-plt.hist(helpfulness_ratings, bins=3, align='left', rwidth=0.8)
-plt.title('Helpfulness Distribution')
-plt.xlabel('Helpfulness')
-plt.ylabel('Count')
-plt.xticks([0, 0.65, 1.35], ['neutral', 'helpful', 'unhelpful'])
-plt.show()
+# training labels
+labels_train = [sentiment_ratings[i] for i in train_set]
+# test labels
+labels_test = [sentiment_ratings[i] for i in test_set]
