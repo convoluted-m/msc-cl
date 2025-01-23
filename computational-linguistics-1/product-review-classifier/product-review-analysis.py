@@ -22,7 +22,7 @@ with open("Compiled_Reviews.txt") as f:
 
 ## Explore sentiment ratings
 #Count sentiment with Counter()
-sentiment_ratings_counter = Counter(sentiment_ratings)
+# sentiment_ratings_counter = Counter(sentiment_ratings)
 #print(sentiment_ratings_counter)
 
 # # Plot positive vs negative sentiment using matplotlib
@@ -82,7 +82,7 @@ sentiment_ratings_counter = Counter(sentiment_ratings)
 
 ## PREPARE THE DATA
 
-## Tokenise the text
+## Tokenise 
 # Define a token (word, space-based)
 token_definition = re.compile("[^ ]+")
 # Tokenise the reviews
@@ -101,79 +101,135 @@ sorted_token_counts=sorted(token_counts.items(), key=lambda item: item[1], rever
 # select just tokens
 sorted_tokens=list(zip(*sorted_token_counts))[0]
 
-## ENCODE TEXT 
+## ENCODE with one-hot encoding 
 # Select the first 5000 words
 tokens_5000 = sorted_tokens[0:5000]
 
-# Create a 10000 x 5000 matrix of zeros for one-hot encoding
+# Create a matrix for one-hot encoding
+# size 36547 x 5000 matrix of zeros; row represents a review and column each token
 one_hot_matrix = np.zeros((len(reviews), len(tokens_5000)))
-#iterate over the reviews
+
+# Loop through reviews
 for i, rev in enumerate(reviews):
     # Tokenise the current review
     tokens = token_definition.findall(rev)
     # iterate over the set of 5000 words
-    for word,t in enumerate(tokens_5000):
-        # if the current word j occurs in the current review i then set the matrix element at i,j to be one. Otherwise leave as zero.
+    for j,t in enumerate(tokens_5000):
+        # if the current word j occurs in the current review i then set the matrix element at i,j to 1
         if t in tokens:
-             one_hot_matrix[i,word] = 1
+             one_hot_matrix[i,j] = 1
 
-train_set=np.random.choice(len(reviews),int(len(reviews)*0.8),replace=False)
-test_set=list(set(range(0,len(reviews))) - set(train_set))
+# Example of the first 3 rows of the one-hot matrix
+example_one_hot_matrix = one_hot_matrix[:3]
+print(example_one_hot_matrix)
+# one_hot_matrix.shape
 
-train_matrix = one_hot_matrix[train_set,]
-test_matrix = one_hot_matrix[test_set,]
+## SPLIT the data
+# Select reviews for training - randomly select 80% of the indices from the reviews list for training
+train_set = np.random.choice(len(reviews), int(len(reviews) * 0.8), replace=False)
+# Select reviews for testing - subtract the training set indices from the full set of indices (remaining 20%)
+remaining_indices = list(set(range(0, len(reviews))) - set(train_set))
+# Select half of the remaining indices for the test set
+test_set = np.random.choice(remaining_indices, int(len(remaining_indices) * 0.5), replace=False)
+# Select the remaining indices after selecting the test set for the dev set
+dev_set = list(set(remaining_indices) - set(test_set))
 
+# Create separate matrices for training, test and dev to be used as input features to the model
+# Select the rows from the one_hot_matrix corresponding to the training set indices (columns 5000, one column for each token)
+train_matrix = one_hot_matrix[train_set, :] # slice - for each of these rows (selected reviews), select columns
+
+# Select the rows for the test indices
+test_matrix = one_hot_matrix[test_set, :]
+
+# Select the rows for the dev indices
+dev_matrix = one_hot_matrix[dev_set, :]
+
+# Create training, test, and dev labels - select the labels corresponding to the training/test/dev set indices
 sentiment_labels_train = [sentiment_ratings[i] for i in train_set]
 sentiment_labels_test = [sentiment_ratings[i] for i in test_set]
+sentiment_labels_dev = [sentiment_ratings[i] for i in dev_set]
 
-## FIT A LOGISTIC REGRESSION MODEL
+## FIT a logistic regression model for classification
+
+# Define the number of input features used in the one-hot encoding
 num_features=5000
-y=[int(l == "positive") for l in sentiment_labels_train]
-weights = np.random.rand(num_features)
-bias=np.random.rand(1)
-n_iters = 2500
-lr=0.1
-logistic_loss=[]
-num_samples=len(y)
-for i in range(n_iters):
-  z = train_matrix.dot(weights)+bias
-  q = 1/(1+np.exp(-z))
-  eps=0.00001
-  loss = -sum((y*np.log2(q+eps)+(np.ones(len(y))-y)*np.log2(np.ones(len(y))-q+eps)))
-  logistic_loss.append(loss)
 
+# Convert sentiment labels to binary (0 or 1)
+# uses list comprehension that iterates over each label; if l is positive then it converst it to 1 with int()
+# and convert the whole list into a numpy array; y is the gold label (array of all correct labels for training))
+y = np.array([int(label == "positive") for label in sentiment_labels_train])
+
+# Generate random weights for each feature - array of random numbers 0-1 
+weights = np.random.rand(num_features)
+# initialize bias randomly
+bias=np.random.rand(1)
+
+# set number of iterations for training
+n_iters = 2500
+# set learning rate for optimization 
+lr = 0.1
+# Create an empty list to store loss values from each iteration
+logistic_loss = []
+# set the number of training samples
+num_samples = len(y)
+
+# Train
+for i in range(n_iters):
+  # Forward pass: get z score
+  z = train_matrix.dot(weights) + bias
+  # convert to probabilities with sigmoid function
+  q = 1 / (1 + np.exp(-z))
+ 
+  # Calculate Loss
+  eps = 0.00001  # small value to avoid log 0
+  # cross-entropy loss
+  loss = -np.sum((y * np.log2(q + eps) + (np.ones(len(y)) - y) * np.log2(np.ones(len(y)) - q + eps)))
+  # append the loss value from the current iteration
+  logistic_loss.append(loss)
+  
+  # Calculate gradient
+  # Calculate the gradient of the loss with respect to weights
   dw = ((q-y).dot(train_matrix) * (1/num_samples))
+  # gradient with respect to bias
   db = sum((q-y))/num_samples
+
+  # update parameters
   weights = weights - lr*dw
   bias = bias - lr*db
 
-plt.plot(range(1,n_iters),logistic_loss[1:])
+# Plot the loss values against the number of iterations/epochs
+plt.plot(range(1, n_iters + 1), logistic_loss)
 plt.xlabel("number of epochs")
 plt.ylabel("loss")
 
-# calculate predicted class - a vector of predicted values
+## TEST
+# calculate predicted class for each test sample - gives z score
 z = test_matrix.dot(weights)+bias
-# turn z into probability
+# turn z into probability with sigmoid
 q = 1/(1+np.exp(-z))
 #create an empty list for predicted labels
 y_test_pred = []
 
 # iterate over probability score q and add labels 1 and 0 to the labels list
-#for i in q:
-#  if i > 0.5:
-#    y_test_pred.append(1)
-#  else:
-#    y_test_pred.append(0)
+for i in q:
+  if i > 0.5:
+    y_test_pred.append(1)
+  else:
+    y_test_pred.append(0)
 
 # could be done with list comprehension as well
-y_test_pred = [int(i>0.5) for i in q]
+#y_test_pred = [int(i>0.5) for i in q]
 
 print(y_test_pred)
 
 # Calculate accuracy
+# convert sentiment labels to 0/1
 y_test=[int(l == "positive") for l in sentiment_labels_test] # int returns 1 or 0
-acc_test=[int(yp == y_test[s]) for s,yp in enumerate(y_test_pred)] # compares same index in both lists (gold vs test labels)
-print(sum(acc_test)/len(acc_test))
+
+# compares same index in both lists (gold y_test vs predicted labels)
+acc_test=[int(yp == y_test[s]) for s,yp in enumerate(y_test_pred)]
+accuracy = sum(acc_test)/len(acc_test)
+print(f"Accuracy:{accuracy}")
 
 # precision , recall
 labels_test_pred=["positive" if s == 1 else "negative" for s in y_test_pred]
