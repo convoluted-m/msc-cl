@@ -1,0 +1,39 @@
+# import Pytorch
+import torch
+
+### Creating tensors
+# Create a tensor from an array
+torch.tensor([1,2,4,5])
+torch.tensor([[1,2,4,5], [1,2,4,5]])
+
+# initialise a tensor by size
+# all elements are zeros
+torch.zeros(3,5)
+# all elements are one
+torch.ones(10,2)
+
+# create a randomly populated tensor
+# values form 0 to 1
+torch.rand(10)
+# Values from normal distribution with mean of 0 and standard deviation of 1
+torch.randn(10)
+
+# based on an existing tensor
+a = torch.zeros(10)
+# check the shape
+a.shape
+
+# vector of ten floats with the value 11
+torch.full_like(a,11)
+
+## Specify the data type
+torch.rand(10, dtype=torch.float32)
+torch.rand(10, dtype=torch.float64)
+
+# check data type
+b = torch.zeros(10)
+torch.full_like(b,11,dtype=torch.int32)
+b.dtype
+
+# where the tensor is situated
+b.device

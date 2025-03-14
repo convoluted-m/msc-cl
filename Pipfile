@@ -7,6 +7,8 @@ name = "pypi"
 jupyter = "*"
 matplotlib = "*"
 gensim = "*"
+torch = "*"
+nltk = "*"
 
 [dev-packages]
 
